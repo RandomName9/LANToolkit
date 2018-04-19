@@ -1,0 +1,8 @@
+<RCC>
+    <qresource prefix="/">
+        <file>T_DownArrow.png</file>
+        <file>T_DownArrowHover.png</file>
+        <file>T_DownArrowNormal.png</file>
+        <file>T_HostIco.png</file>
+    </qresource>
+</RCC>
