@@ -44,6 +44,32 @@ public:
         return Result;
     }
 
+    LANHostInfo CreateRandomMacAddrHost() const
+    {
+        LANHostInfo CloneHost=*this;
+        for(int i=0;i<6;++i)CloneHost.MacAddr[i]=qrand()%0xff;
+        return CloneHost;
+
+    }
+
+    LANHostInfo CreateRandomIpAddrHost() const
+    {
+        LANHostInfo CloneHost=*this;
+        for(int i=0;i<4;++i)CloneHost.Ipv4Addr[i]=qrand()%0xff;
+        return CloneHost;
+
+    }
+
+    static  LANHostInfo CreateRandomHost()
+    {
+        LANHostInfo Host;
+        //set a random ip,don't use ip address in the same LAN
+        for(int i=0;i<4;++i)Host.Ipv4Addr[i]=qrand()%0xff;
+        //fill the mac address with random value
+        for(int i=0;i<6;++i)Host.MacAddr[i]=qrand()%0xff;
+        return Host;
+    }
+
     bool bIsHostVulerable=false; //any of the port is vulerable will mark this host as vulerable
     bool bPortVulerable[CheckVulerablePortsSize];
 };
@@ -55,7 +81,7 @@ public:
 
     QString InterfaceName;
     unsigned char Ipv4Addr[4];
-     unsigned char MacAddr[6];
+    unsigned char MacAddr[6];
     class pcap_if* PcapInterface=nullptr;
 
     QString GetIpv4Addr() const
@@ -96,7 +122,7 @@ public:
     ~LANPcap();
 
     bool SendArpRequestPacket(const LANHostInfo& SrcHost,const LANHostInfo& DstHost);
-     bool SendArpReplyPacket(const LANHostInfo& SrcHost,const LANHostInfo& DstHost);
+    bool SendArpReplyPacket(const LANHostInfo& SrcHost,const LANHostInfo& DstHost);
 
     bool SendTcpSynPacket(const LANHostInfo& SrcHost,const LANHostInfo& DstHost,unsigned short SrcPort,unsigned short DstPort);
     const  LANHostInfo& GetHostInfo(unsigned char Index){return CacheLANHostInfo[Index];}

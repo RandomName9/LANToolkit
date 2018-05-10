@@ -10,13 +10,16 @@
 #include <QGraphicsDropShadowEffect>
 #include <QMouseEvent>
 
+#include <LANHelper/lanfilereceiver.h>
+#include <LANHelper/lanfilesender.h>
+
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
     ui(new Ui::MainWindow)
 {
+    //set up the flat ui for mainwindow
     ui->setupUi(this);
     this->FlatWindowUI();
-
     ui->ScanprogressBar->hide();
 
 
@@ -25,7 +28,7 @@ MainWindow::MainWindow(QWidget *parent) :
 
     ui->InterfaceBox->addItems(aLANPcap->GetInterfaceDescriptionLists());
 
-
+    //when find the host info,we update it to IpAddrList to show
     QObject::connect(aLANPcap,&LANPcap::OnUpdateHostInfo,this,&MainWindow::AddIpAddrToList);
 
     //when succeed send packet, increment the send pack num
@@ -68,7 +71,10 @@ MainWindow::MainWindow(QWidget *parent) :
 
 
 
-
+    Sender=new LANFileSender(this);
+    Receiver=new LANFileReceiver(this);
+    Sender->SetupSendInfo("D://Victim.mp4","127.0.0.1");
+    Receiver->SetupReceiveInfo("127.0.0.1");
 
 }
 
@@ -126,8 +132,8 @@ void MainWindow::on_StartAtkBtn_clicked()
 
 
    //---------Func Test for arp attack for future development---------------------------
-   // ArpAttacker* aArpAttack=new ArpAttacker(this,aLANPcap);
-   // aArpAttack->StartAttack();
+   ArpAttacker* aArpAttack=new ArpAttacker(this,aLANPcap);
+   aArpAttack->StartAttackTargets();
    //------------------------------------
 
 

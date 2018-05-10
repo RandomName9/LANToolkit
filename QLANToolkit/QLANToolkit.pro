@@ -36,13 +36,20 @@ SOURCES += \
         mainwindow.cpp \
     LANAttacker/synfloodattacker.cpp \
     LANAttacker/lanpcap.cpp \
-    LANAttacker/arpattacker.cpp
+    LANAttacker/arpattacker.cpp \
+    LANAttacker/netattacker.cpp \
+    LANHelper/lanfilesender.cpp \
+    LANHelper/lanfilereceiver.cpp
 
 HEADERS += \
         mainwindow.h \
     LANAttacker/synfloodattacker.h \
     LANAttacker/lanpcap.h \
-    LANAttacker/arpattacker.h
+    LANAttacker/arpattacker.h \
+    LANAttacker/netattacker.h \
+    LANHelper/lanfilesender.h \
+    LANHelper/lanfilereceiver.h \
+    LANHelper/lanfile.h
 
 FORMS += \
         mainwindow.ui

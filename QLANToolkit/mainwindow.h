@@ -63,6 +63,9 @@ private:
 
     QPoint MousePos; //position when mouse pressed
     QPoint WindowPos;  //local position of the this window
+
+    class LANFileReceiver *Receiver;
+    class LANFileSender *Sender;
 };
 
 #endif // MAINWINDOW_H

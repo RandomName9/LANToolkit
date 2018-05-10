@@ -1,53 +1,22 @@
 #ifndef SYNFLOODATTACKER_H
 #define SYNFLOODATTACKER_H
 
-#include <QThread>
-#include <QSet>
+#include <LANAttacker/netattacker.h>
 
 
-class SynFloodAttacker:public QThread
+class SynFloodAttacker:public NetAttacker
 {
 
 public:
-    explicit SynFloodAttacker(QObject *parent,class  LANPcap* LANPcap);
-
-    ~SynFloodAttacker();
-
-    void AddTarget(unsigned char LANIndex)
-    {
-        Targets.insert( LANIndex);
-    }
-
-    void RemoveTarget(unsigned char LANIndex)
-    {
-        Targets.remove( LANIndex );
-    }
-
-    void AddTarget(QString IpAddr);
-
-    void RemoveTarget(QString IpAddr);
-
-    void ClearTargets()
-    {
-        this->Targets.clear();
-    }
-
-    void StartAttackTargets();
-    void StopAttackTargets();
+     using NetAttacker::NetAttacker;
 
 protected:
-    virtual void run() Q_DECL_OVERRIDE;
 
-private:
-    void SendSynFloodPacket(unsigned char LANIndex);
+   virtual void AttackBehaveImpl(const class LANHostInfo &TargetHost) override;
 
-    //func test for attack host outside the LAN
-    void SendSynDebug();
 
-private:
 
-    class  LANPcap* _LANPcap;
-    QSet<unsigned char> Targets;
+
 };
 
 #endif // SYNFLOODATTACKER_H
