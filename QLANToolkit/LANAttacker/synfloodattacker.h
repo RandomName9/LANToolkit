@@ -10,6 +10,8 @@ class SynFloodAttacker:public NetAttacker
 public:
      using NetAttacker::NetAttacker;
 
+    QString GetSynFloodInfo(QString HostName);
+
 protected:
 
    virtual void AttackBehaveImpl(const class LANHostInfo &TargetHost) override;

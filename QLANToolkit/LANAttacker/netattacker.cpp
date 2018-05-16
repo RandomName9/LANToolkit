@@ -34,12 +34,14 @@ void NetAttacker::StartAttackTargets()
     }
 
     this->start();
+    bIsAttacking=true;
 }
 
 void NetAttacker::StopAttackTargets()
 {
     this->requestInterruption();
     this->terminate();
+    bIsAttacking=false;
 }
 
 void NetAttacker::run()
@@ -49,10 +51,16 @@ void NetAttacker::run()
 
         if(_LANPcap)
         {
+
+
             for(unsigned char LANIndex:Targets)
             {
                   AttackBehaveImpl(_LANPcap->GetHostInfo(LANIndex));
             }
+
+
+
+
         }
 
 
@@ -61,5 +69,9 @@ void NetAttacker::run()
 
 void NetAttacker::AttackBehaveImpl(const LANHostInfo &TargetHost)
 {
-    //derived class should impl this function
+    //derived class should impl this function for each target
 }
+
+
+
+

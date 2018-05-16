@@ -5,6 +5,7 @@
 #include <QThread>
 #include <QStringList>
 #include <QMap>
+#include <utility.h>
 
 class LANPcap;
 
@@ -44,10 +45,26 @@ public:
         return Result;
     }
 
+    QString GetOpenPortsInfo()
+    {
+        QString Result;
+        bool bHasOpenPort=false;
+        for(int Index=0;Index<CheckVulerablePortsSize;++Index)
+        {
+            if(bPortVulerable[Index])
+            {
+                 Result+=QString("%1 ").arg(CheckVulerablePorts[Index]);
+                 bHasOpenPort=true;
+            }
+
+        }
+        return bHasOpenPort?Result:"syn_flood invulnerable";
+    }
+
     LANHostInfo CreateRandomMacAddrHost() const
     {
         LANHostInfo CloneHost=*this;
-        for(int i=0;i<6;++i)CloneHost.MacAddr[i]=qrand()%0xff;
+        for(int i=0;i<6;++i)CloneHost.MacAddr[i]=Utility::RandomInteger(0,0xff);
         return CloneHost;
 
     }
@@ -55,7 +72,7 @@ public:
     LANHostInfo CreateRandomIpAddrHost() const
     {
         LANHostInfo CloneHost=*this;
-        for(int i=0;i<4;++i)CloneHost.Ipv4Addr[i]=qrand()%0xff;
+        for(int i=0;i<4;++i)CloneHost.Ipv4Addr[i]=Utility::RandomInteger(0,0xff);
         return CloneHost;
 
     }
@@ -64,9 +81,9 @@ public:
     {
         LANHostInfo Host;
         //set a random ip,don't use ip address in the same LAN
-        for(int i=0;i<4;++i)Host.Ipv4Addr[i]=qrand()%0xff;
+        for(int i=0;i<4;++i)Host.Ipv4Addr[i]=Utility::RandomInteger(0,0xff);
         //fill the mac address with random value
-        for(int i=0;i<6;++i)Host.MacAddr[i]=qrand()%0xff;
+        for(int i=0;i<6;++i)Host.MacAddr[i]=Utility::RandomInteger(0,0xff);
         return Host;
     }
 
@@ -99,11 +116,19 @@ public:
 
     QString toQString()
     {
-         return QString("%1 | IPv4 %2.%3.%4.%5").arg(InterfaceName).arg(Ipv4Addr[0]).arg(Ipv4Addr[1]).arg(Ipv4Addr[2]).arg(Ipv4Addr[3]);
+         return QString("%1 | %2.%3.%4.%5").arg(InterfaceName).arg(Ipv4Addr[0]).arg(Ipv4Addr[1]).arg(Ipv4Addr[2]).arg(Ipv4Addr[3]);
     }
 
 };
 
+
+struct FPacketBatch
+{
+    const LANHostInfo& SrcHost;
+    const LANHostInfo& DstHost;
+    unsigned short SrcPort;
+    unsigned short DstPort;
+};
 
 
 // a  wrapper class for pcap,provide basic analyze,capture and send packet
@@ -115,7 +140,8 @@ class LANPcap:public QThread
 signals:
 
     void OnUpdateHostInfo(int HostIndex);
-    void OnSendTcpSynPacket(bool val);
+
+    void OnAttackSpeedChanged(QString AttackSpeedDescription);
 
 public:
     explicit LANPcap(QObject *parent);
@@ -125,6 +151,10 @@ public:
     bool SendArpReplyPacket(const LANHostInfo& SrcHost,const LANHostInfo& DstHost);
 
     bool SendTcpSynPacket(const LANHostInfo& SrcHost,const LANHostInfo& DstHost,unsigned short SrcPort,unsigned short DstPort);
+
+
+    int SendTcpSynPackets(QList<FPacketBatch> &Packets);
+
     const  LANHostInfo& GetHostInfo(unsigned char Index){return CacheLANHostInfo[Index];}
     void StartAnalyzeLAN();
     void SetCurrentNetInterface(int Index);
@@ -135,6 +165,8 @@ public:
 
     QStringList GetInterfaceDescriptionLists();
 
+
+    LANHostInfo GetGateWayHostInfo();
 protected:
     virtual void run() Q_DECL_OVERRIDE;
 
@@ -152,12 +184,17 @@ private:
     class pcap_if* DevLists=nullptr;
     struct pcap* PcapHandle=nullptr;
 
+    struct pcap_send_queue *PacketQueue;
+
     QList<DeviceInterfaceInfo> CacheDevs;
+
+    unsigned char GateWayIndex=254;
     unsigned char LANFormat[3]; //format like 172.168.21
 
     int CurrentSelectDevIndex=-1;
 
-
+    qint64 NetworkSendSize=0;
+    qint64 LastNetworkSendSize=0;
 
     LANHostInfo CacheLANHostInfo[256];
 

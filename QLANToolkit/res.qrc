@@ -4,5 +4,7 @@
         <file>T_DownArrowHover.png</file>
         <file>T_DownArrowNormal.png</file>
         <file>T_HostIco.png</file>
+        <file>T_Transparent.png</file>
+        <file>T_HostUserIco.png</file>
     </qresource>
 </RCC>

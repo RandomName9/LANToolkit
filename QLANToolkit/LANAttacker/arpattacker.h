@@ -20,11 +20,6 @@ private:
 
 
 
-
-
-
-  //  void SendArpAttackPacketDebug3(unsigned char LANIndex);
-
 };
 
 #endif // ARPATTACKER_H

