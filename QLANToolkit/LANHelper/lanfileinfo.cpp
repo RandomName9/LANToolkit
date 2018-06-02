@@ -44,18 +44,26 @@ LANFileServer::LANFileServer(QObject *parent):LANFileContext(parent)
     Server = new QTcpServer(this);
     connect(Server, SIGNAL(newConnection()), this, SLOT(OnNewConnection()));
 
+    bool Result=Server->listen(QHostAddress::AnyIPv4, CONNECT_PORT);
+    if(!Result)
+    {
+        qDebug()<<Server->errorString();
+    }
+
+    connect(Server, &QTcpServer::acceptError, [](QAbstractSocket::SocketError Error)
+    {
+
+        qDebug()<<"accept error";
+    });
 }
 
-void LANFileServer::SetSenderHost(QString SenderHost)
-{
-    //listen to the client,when connect, OnNewConnection will be triggered
-    Server->listen(QHostAddress(SenderHost), LANFileContext::CONNECT_PORT);
 
-}
-
+//when have a NewConnection,using the socket the recv the file info
 void LANFileServer::OnNewConnection()
 {
     Socket=Server->nextPendingConnection();
+
+
     connect(Socket, SIGNAL(readyRead()), this, SLOT(OnReadyRead()));
 
     qDebug()<<"server establish new connection";
@@ -64,13 +72,17 @@ void LANFileServer::OnNewConnection()
 void LANFileServer::OnReadyRead()
 {
 
+  //  qDebug()<<"call on ready read";
 
+    //a payload might contain multi files info, so we incessantly read it until remainsize zero
     qint64 RemainedSize=1;
 
     while(0 != RemainedSize)
     {
 
         QDataStream InStream(Socket);
+
+        //if we detect we havn't create file, read the fileinfo(desc and totalFileSize) from the socket
         if(nullptr==File)
         {
             InStream>>TotalFileSize>>FileDesc;
@@ -94,14 +106,22 @@ void LANFileServer::OnReadyRead()
 
             File->open(QFile::WriteOnly);
 
+
             qDebug()<<"Received File Path is"<<FilePath<<" and size is "<<TotalFileSize;
         }
 
+        //now read the file date and write it into file
         qint64 SizeToRead=qMin(TotalFileSize-ProcessedFileSize,Socket->bytesAvailable());
         RemainedSize=Socket->bytesAvailable()-SizeToRead;
         Buf=Socket->read(SizeToRead);
         File->write(Buf);
         ProcessedFileSize+=Buf.size();
+
+        RecvFilesProceedSize+=Buf.size();
+
+
+        emit OnUpdateRecvProgress((float)ProcessedFileSize/TotalFileSize,(float)RecvFilesProceedSize/RecvFilesTotalSize);
+
 
         if(ProcessedFileSize==TotalFileSize)
         {
@@ -111,13 +131,13 @@ void LANFileServer::OnReadyRead()
 
             //Socket->read(RemainedSize);
 
+
+           //when write a file is over, we reset it to recv the fileInfo and restart recv a new file
             this->ResetFile();
         }
 
+
     }
-
-
-
 
 
 
@@ -162,6 +182,9 @@ void LANFileClient::SetupSendInfo(QString Filename, QString TargetHost)
 
 }
 
+//giver file info and return a relative path,this is for absolute file path in different host
+//for example, client:d:/a/b/c/d.txt and we get /c/d.txt if we want to send b dir
+//and server recv the /c/d.txt and merge the path to d:/recvpath/c/d.txt
 QString LANFileClient::GetFileRelativePath(QFileInfo &FileInfo)
 {
     if(""==RootDir)
@@ -177,15 +200,10 @@ QString LANFileClient::GetFileRelativePath(QFileInfo &FileInfo)
         QStringList Lists=FileInfo.absoluteFilePath().split(DirName);
 
         return DirName+Lists.last();
-
-
-
-
-
     }
 }
 
-
+//return the desc for display usage, when the client select a dir/file,we need to get files info to display
 QString LANFileClient::GetFilesDescription()
 {
 
@@ -207,10 +225,38 @@ QString LANFileClient::GetFilesDescription()
         FilesSize+=FileInfo.size();
         FilesCount++;
     }
+
+    this->TotalFileSize=FilesSize;
     QString SFilesSize=Utility::GetSizeDescription(FilesSize);
 
     return QString("Dir:%1 FileCount:%2 FileSize:%3").arg(RootDir).arg(FilesCount).arg(SFilesSize);
 
+}
+
+
+//return the desc for network decode usage,format as [desc filecount totalsize(in byte)]
+QString LANFileClient::GetSendNetworkInfo() const
+{
+    if(""==RootDir)
+    {
+        const QFileInfo &FileInfo=Files[0];
+        return QString("%1 1 %2").arg(FileInfo.fileName()).arg(FileInfo.size());
+    }
+    else
+    {
+        quint64 FilesSize=0;
+        quint32 FilesCount=0;
+
+        for(const QFileInfo &FileInfo:Files)
+        {
+            FilesSize+=FileInfo.size();
+            FilesCount++;
+        }
+
+        this->FilesTotalSize=FilesSize;
+        this->FilesProcessSize=0;
+        return QString("%1 %2 %3").arg(RootDir).arg(FilesCount).arg(FilesSize);
+    }
 }
 
 
@@ -233,15 +279,25 @@ void LANFileClient::SetFilesToSend(QString FileName)
         Files.append(FileInfo);
     }
 
-
+  //  FilesSize=Files.size();
 }
+
 
 QString LANFileClient::ConnectToReceiver(QString TargetHost)
 {
-    if(Files.isEmpty())return QString("File Not Set");
+
+
+    if(Files.isEmpty())
+    {
+      return QString("File Not Set");
+    }
 
     CurrentSendIndex=0;
+
     ResetFile();
+
+
+
 
     //make connect to send the first file
     SetupSendInfo(Files[CurrentSendIndex].absoluteFilePath(),CurrentTargetHost=TargetHost);
@@ -251,7 +307,7 @@ QString LANFileClient::ConnectToReceiver(QString TargetHost)
 
 
 
-
+//iterate the file by filename(could be a dir),and save it to Files
 void LANFileClient::IterateFiles(QString FileName)
 {
     QDir Dir(FileName);
@@ -277,7 +333,7 @@ void LANFileClient::IterateFiles(QString FileName)
 
 
 
-
+//client send the file
 void LANFileClient::SendFile(qint64 Size)
 {
 
@@ -301,6 +357,10 @@ void LANFileClient::SendFile(qint64 Size)
 
     ProcessedFileSize+=Buf.size();
 
+    FilesProcessSize+=Buf.size();
+  //  qDebug()<<"FilesProcessSize:"<<FilesProcessSize<<" TotalSize"<<FilesTotalSize;
+   emit OnUpdateSend((float)ProcessedFileSize/TotalFileSize,(float)FilesProcessSize/FilesTotalSize);
+
 
 //    if(ProcessedFileSize>=PAYLOAD_SIZE)
 //    {
@@ -321,6 +381,11 @@ void LANFileClient::SendFile(qint64 Size)
             //iterate to send all the files
             SetupSendInfo(Files[++CurrentSendIndex].absoluteFilePath(),CurrentTargetHost);
         }
+    }
+
+    if(FilesProcessSize==FilesTotalSize)
+    {
+        FilesProcessSize=0;
     }
 
 }

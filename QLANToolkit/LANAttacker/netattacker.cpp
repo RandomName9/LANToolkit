@@ -1,7 +1,7 @@
 #include "netattacker.h"
 #include "LANAttacker/lanpcap.h"
 #include <QDebug>
-NetAttacker::NetAttacker(QObject *parent, LANPcap *LANPcap):QThread(parent),_LANPcap(LANPcap)
+NetAttacker::NetAttacker(LANPcap *LANPcap):QThread(LANPcap),_LANPcap(LANPcap)
 {
 
 }
@@ -39,6 +39,7 @@ void NetAttacker::StartAttackTargets()
 
 void NetAttacker::StopAttackTargets()
 {
+    QMutexLocker Locker(&Mutex);
     this->requestInterruption();
     this->terminate();
     bIsAttacking=false;
@@ -52,12 +53,12 @@ void NetAttacker::run()
         if(_LANPcap)
         {
 
-
+            QMutexLocker Locker(&Mutex);
             for(unsigned char LANIndex:Targets)
             {
+
                   AttackBehaveImpl(_LANPcap->GetHostInfo(LANIndex));
             }
-
 
 
 

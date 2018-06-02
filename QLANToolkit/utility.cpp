@@ -2,6 +2,7 @@
 #include <QDir>
 #include <QTime>
 
+//given a filename, iterate from base dir to mkdir to top
 void Utility::CreateFilePath(QString FileName)
 {
 
@@ -23,6 +24,8 @@ void Utility::CreateFilePath(QString FileName)
     }
 }
 
+
+//convert the size in byte to QString
 QString Utility::GetSizeDescription(quint64 Size)
 {
 

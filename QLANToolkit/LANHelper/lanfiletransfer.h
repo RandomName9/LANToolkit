@@ -15,6 +15,8 @@ public:
     void SetupSendFileInfo(QString Filename, QString TargetHost);
 
 
+
+
     //receiver set where the sender is
     void SetSenderHost(QString SenderHost);
 
@@ -29,10 +31,20 @@ public:
     QString ConnectToReceiver(QString TargetHost);
 
 
+    void BroadcastSendFileRequire(QString ReceiverIpAddr);
+
+
+signals:
+
+    void OnSendProgressUpdate(float CurFileProgress,float TotalProgress);
+    void OnRecvProgressUpdate(float CurFileProgress,float TotalProgress);
+
 
 private:
     class LANFileClient* Client;
     class LANFileServer* Server;
+
+
 
 };
 

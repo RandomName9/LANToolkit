@@ -3,30 +3,22 @@
 
 #include <QObject>
 
-class NetworkMessge
+#include <QSet>
+
+#include <utility.h>
+
+struct FSendFileRequest
 {
-public:
-    explicit  NetworkMessge(class LANBroadcast &Broadcast,QDataStream &InStream);
+    QString Name;
+    qint64 FilesCount;
+    qint64 FilesTotalSize;
 
 
-
-    QString MessageFlag;
+    QString toQString() const
+    {
+        return QString("FilesName:%1 FilesCount:%2 FilesSize:%3").arg(Name).arg(FilesCount).arg(Utility::GetSizeDescription(FilesTotalSize));
+    }
 };
-
-class NetworkFileTransMessage:public NetworkMessge
-{
-
-    explicit  NetworkFileTransMessage(class LANBroadcast &Broadcast,QDataStream &InStream);
-
-public:
-    QString SenderHost;
-    QString FileDesc;
-    qint64 TotalFileSize;
-
-};
-
-
-
 
 //class provide for udp broadcast info and readinfo
 class LANBroadcast : public QObject
@@ -39,18 +31,53 @@ public:
 
     void WriteInfo(QString Data);
 
-    void BroadcastFileTransRequire(QString SenderHost, QString ReceiverHost,QString FileDesc, qint64 TotalFileSize);
+    void SetLocalHost(QString InLocalHost);
+
+
+    bool IsInSameLan(QString IpAddr);
+
+    void BroadcastFileTransRequire(QString SenderHost, QString ReceiverHost,QString FileDesc);
+
+    void BroadcastFileTransReply(QString SenderHost);
+
+
+    QString GetFileSendToLocalRequestDetail(QString IpAddr, bool &OutHasRequest);
+
+    qint64 GetTotalRecvFilesSizeFromQuest(QString IpAddr);
+
+    void BroadcastFileTransRequire(QString ReceiverHost,QString FileDesc);
+
+
+    void SetBroadcastEnable(bool val);
+
+
+    bool IsBroadcastEnable()
+    {
+        return bIsEnable;
+    }
 
 
 
 public:
 
-    constexpr static quint16 BROADCAST_PORT=10010;
+    constexpr static quint16 BROADCAST_PORT=666;
 
-protected:
 
-    virtual void OnReceiveFileTransRequire(QString SenderHost,QString FileDesc,qint64 TotalFileSize);
+
+
 signals:
+
+
+
+    void OnReceiveFileSendToLocalRequest(QString Sender,FSendFileRequest Request);
+
+    void OnReceiveReceiverReplyLocal(QString Receiver);
+
+    void OnOnlineHostFound(QString HostIpAddr);
+
+
+
+
 
 public slots:
     void onReadyRead();
@@ -62,6 +89,23 @@ public slots:
 
 private:
     class QUdpSocket *Socket;
+
+
+    //decode the message info by its prefix
+    inline QString GetMessageInfo(QString Message,QString Prefix){ return Message.startsWith(Prefix)?Message.split(Prefix+":")[1]:"";}
+
+
+    QSet<QString> OnlineHosts;
+
+
+    //k-Sender v-Detail, this is design for ui display info
+    QMap<QString,FSendFileRequest> ReceivedSendToLocalRequest;
+
+    QString LocalHost;
+
+    bool bIsEnable=false;
+
+
 };
 
 #endif // LANBROADCAST_H

@@ -9,13 +9,18 @@
 
 class LANPcap;
 
-//use hard code to define checked port
+//design flaw,using hardcode to define checked ports
+
+
+
 //static constexpr  unsigned short CheckVulerablePorts[]={22,45,80,135,137,139,445};
-static constexpr  unsigned short CheckVulerablePorts[]={22,45,80,135,139,8000,443};
 //static constexpr  unsigned short CheckVulerablePorts[]={902,912,5357,7518,49664,8000,8080};
+static constexpr  unsigned short CheckVulerablePorts[]={22,45,80,135,139,8000,443};
 static constexpr  unsigned char CheckVulerablePortsSize=sizeof(CheckVulerablePorts)/sizeof(CheckVulerablePorts[0]);
 
 
+
+//info to represent a LANHost
 class LANHostInfo
 {
 public:
@@ -92,6 +97,7 @@ public:
 };
 
 
+//info to represent a deriveinterface (wlan or ethernet...)
 class DeviceInterfaceInfo
 {
 public:
@@ -121,7 +127,7 @@ public:
 
 };
 
-
+//deprecated
 struct FPacketBatch
 {
     const LANHostInfo& SrcHost;
@@ -131,7 +137,9 @@ struct FPacketBatch
 };
 
 
+
 // a  wrapper class for pcap,provide basic analyze,capture and send packet
+//design flaw, heavy,should be replaced by ECS Model for further dev
 class LANPcap:public QThread
 {
     //we need to use qt slot so Q_OBJECT should be added
@@ -152,7 +160,7 @@ public:
 
     bool SendTcpSynPacket(const LANHostInfo& SrcHost,const LANHostInfo& DstHost,unsigned short SrcPort,unsigned short DstPort);
 
-
+    //deprecated
     int SendTcpSynPackets(QList<FPacketBatch> &Packets);
 
     const  LANHostInfo& GetHostInfo(unsigned char Index){return CacheLANHostInfo[Index];}
@@ -160,6 +168,11 @@ public:
     void SetCurrentNetInterface(int Index);
 
     unsigned char GetCurrentInterfaceLANIndex();
+
+    void SetAttackPower(int Val)
+    {
+        this->AttackPower=Val;
+    }
 
     void UpdateHostVulerableInfo(int HostIndex);
 
@@ -184,6 +197,8 @@ private:
     class pcap_if* DevLists=nullptr;
     struct pcap* PcapHandle=nullptr;
 
+
+    //deprecated,design flaw, using thread join and struct(TArray -> fixed size Queue) to sync
     struct pcap_send_queue *PacketQueue;
 
     QList<DeviceInterfaceInfo> CacheDevs;
@@ -196,11 +211,13 @@ private:
     qint64 NetworkSendSize=0;
     qint64 LastNetworkSendSize=0;
 
+    //design flaw:netmask could change
     LANHostInfo CacheLANHostInfo[256];
 
     //Ip address map to MAC address
 
-
+    //design flaw:should be intergrate to ECS's attack comp
+    int AttackPower=1;
 
 };
 

@@ -4,6 +4,8 @@
 #include <QSet>
 #include <QThread>
 #include <LANAttacker/lanpcap.h>
+#include <QMutex>
+#include <QMutexLocker>
 
 //class designed for common attack behave
 
@@ -11,36 +13,41 @@ class NetAttacker:public QThread
 {
 public:
 
-   explicit NetAttacker(QObject *parent,class  LANPcap* LANPcap);
+   explicit NetAttacker(class  LANPcap* LANPcap);
 
     ~NetAttacker();
 
    inline void AddTarget(unsigned char LANIndex)
     {
-        Targets.insert( LANIndex);
+       QMutexLocker Locker(&Mutex);
+       Targets.insert( LANIndex);
     }
 
     inline void RemoveTarget(unsigned char LANIndex)
     {
-        bool bIsAttackingWhenRemove=IsAttcking();
-        if(bIsAttackingWhenRemove)
-        {
-            StopAttackTargets();
-        }
+//        bool bIsAttackingWhenRemove=IsAttcking();
+//        if(bIsAttackingWhenRemove)
+//        {
+//            StopAttackTargets();
+//        }
 
-
+        QMutexLocker Locker(&Mutex);
         Targets.remove( LANIndex );
 
-        if(bIsAttackingWhenRemove)
-        {
-            StartAttackTargets();
-        }
+//        if(bIsAttackingWhenRemove)
+//        {
+//            StartAttackTargets();
+//        }
 
     }
 
     inline bool IsAttcking(){return bIsAttacking;}
 
-    inline int GetTargetCounts(){return Targets.size();}
+    inline int GetTargetCounts()
+    {
+        QMutexLocker Locker(&Mutex);
+        return Targets.size();
+    }
 
     void AddTarget(QString IpAddr);
 
@@ -71,11 +78,13 @@ protected:
 
 protected:
     QSet<unsigned char> Targets;
-
+    mutable QMutex Mutex;
 
 private:
     class  LANPcap* _LANPcap;
     bool bIsAttacking=false;
+
+
 };
 
 #endif // NETATTACKER_H
