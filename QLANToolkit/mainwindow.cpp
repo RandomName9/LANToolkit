@@ -497,6 +497,7 @@ void MainWindow::on_FileReceivePathBtn_clicked()
     QString FileSavePath=QFileDialog::getExistingDirectory(this);
     if( 0!=FileSavePath)
     {
+        FileSavePath+="/";
         ui->FileReceivePathLbl->setText(FileSavePath);
         ui->FileReceivePathLbl->repaint();
         FileTransfer->SetReceiveFileDirPath(FileSavePath);

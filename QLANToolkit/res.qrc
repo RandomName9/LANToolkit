@@ -7,5 +7,6 @@
         <file>T_Transparent.png</file>
         <file>T_HostUserIco.png</file>
         <file>T_HostMessage.png</file>
+        <file>app.ico</file>
     </qresource>
 </RCC>
